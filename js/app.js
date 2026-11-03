@@ -1,11 +1,21 @@
 (() => {
   const N = 56;
-  const W = 1680, H = 1264;
+  const W = 1698, H = 1318;
   const pad = n => String(n).padStart(3, '0');
-  // hd pages are lossless crops of the PDF's own JPEGs; md are lighter previews for the book view.
-  const src = (n, size) => `img/pages/${size}/p${pad(n)}.${size === 'hd' ? 'jpg' : 'webp'}`;
+  // Pages are crops of the PDF's own photos of the printed book (hd), with lighter previews (md).
+  // ?v: the crops changed shape; make browsers fetch the new ones rather than reuse cached ones.
+  const src = (n, size) => `img/pages/${size}/p${pad(n)}.${size === 'hd' ? 'jpg' : 'webp'}?v=2`;
+
+  // Under the flipbook lies the PDF's photo of the open book at the current spread (1-27), supplying the
+  // table, shadows and page edges; the inside pages are exact crops of it, so at rest the two match.
+  // It is split at the spine so a closed book shows only the half its cover lies on.
+  const spreadOf = i => Math.min(27, Math.max(1, Math.floor((i + 1) / 2)));
 
   const bookEl = document.getElementById('book');
+  const flipEl = document.getElementById('flip');
+  const [photoL, photoR] = bookEl.querySelectorAll('.base img');
+  let tier = 'sm';
+  const spreadSrc = s => `img/spreads/${tier}/s${pad(s)}.webp`;
   const wrap = document.getElementById('bookWrap');
   const stage = document.getElementById('portfolio');
   const counter = document.getElementById('counter');
@@ -28,7 +38,7 @@
     img.decoding = 'async';
     img.draggable = false;
     d.append(img);
-    bookEl.append(d);
+    flipEl.append(d);
     pages.push(d);
   }
 
@@ -56,20 +66,18 @@
   const startPage = Math.min(N - 1, Math.max(0, (parseInt((location.hash.match(/page=(\d+)/) || [])[1], 10) || 1) - 1));
   load(startPage);
 
-  // Always show spreads, even on phones, so it reads as a book; tapping a page opens it alone in the zoom viewer.
-  // The library enforces 2 x minWidth as the book's min-width, so keep it within the container.
-  const minW = Math.min(420, Math.floor(wrap.clientWidth / 2));
-  const pf = new St.PageFlip(bookEl, {
-    width: W / 2, height: H / 2,
+  // Always two pages side by side, even on phones, so it reads as a book; tapping a page opens it alone
+  // in the zoom viewer. #flip is sized by the CSS to exactly fit the pages.
+  const pf = new St.PageFlip(flipEl, {
+    width: W, height: H,
     size: 'stretch',
-    minWidth: minW, minHeight: Math.round(minW * H / W),
-    // Size is fitted by the CSS around the book; these only need to be out of the way.
-    maxWidth: W * 2, maxHeight: H * 2,
+    minWidth: 1, minHeight: 1,
+    maxWidth: W * 4, maxHeight: H * 4,
     showCover: true,
     usePortrait: false,
     mobileScrollSupport: true,
-    maxShadowOpacity: 0.35,
-    flippingTime: 750,
+    maxShadowOpacity: 0.5,
+    flippingTime: 900,
     disableFlipByClick: true,
     showPageCorners: false,
     startPage,
@@ -103,7 +111,7 @@
   // a slower swipe with no later moves as a tap where the finger lifted (turning the wrong way), and
   // Chrome makes moves non-cancelable unless the first one is claimed. Instead, a horizontal move
   // starts the same drag the mouse uses, straight away; vertical moves are left to scroll the page.
-  const block = bookEl.querySelector('.stf__block');
+  const block = flipEl.querySelector('.stf__block');
   const bookPos = t => { const r = block.getBoundingClientRect(); return { x: t.clientX - r.left, y: t.clientY - r.top }; };
   let touch0 = null;
   wrap.addEventListener('touchstart', e => {
@@ -167,25 +175,31 @@
     history.replaceState(null, '', i > 0 ? `#page=${v[0] + 1}` : location.pathname);
   };
 
-  // In spread view the covers sit alone on one half; slide the book so they are centred.
-  const syncLayout = () => {
+  // The covers sit alone on one half; slide the book so they are centred, and hide the other half of the
+  // photo, which would otherwise show the first or last spread's page. During a turn to or from a cover
+  // (turn), that half stays hidden until a page has landed on it; opening also slides the book to centre.
+  const syncLayout = (turn = null) => {
     const i = pf.getCurrentPageIndex();
     const half = pf.getBoundsRect().pageWidth / 2;
-    const shift = !isSpread() ? 0 : i === 0 ? -half : i === N - 1 ? half : 0;
+    const shift = turn === 'open' ? 0 : i === 0 ? -half : i === N - 1 ? half : 0;
     bookEl.style.transform = shift ? `translateX(${shift}px)` : '';
+    bookEl.classList.toggle('hide-l', i === 0 || turn === 'to-front');
+    bookEl.classList.toggle('hide-r', i === N - 1 || turn === 'to-back');
+    photoL.src = photoR.src = spreadSrc(spreadOf(i));
   };
 
   const pickTier = () => {
     needHd = pf.getBoundsRect().pageWidth * devicePixelRatio > MD;
     load(pf.getCurrentPageIndex());
+    const t = bookEl.clientWidth * devicePixelRatio > MD ? 'lg' : 'sm';
+    if (t !== tier) { tier = t; syncLayout(); }
   };
 
   pf.on('flip', () => { update(); syncLayout(); });
-  pf.on('changeOrientation', () => { syncLayout(); update(); pickTier(); });
   // The library only re-measures on window resize; entering full screen resizes the container
   // without one, leaving pages at the old size. Its wrapper's height follows the width a frame later
   // and caps the page height, so watch both and re-run the library's resize until they settle.
-  const libWrap = bookEl.querySelector('.stf__wrapper') || bookEl;
+  const libWrap = flipEl.querySelector('.stf__wrapper') || flipEl;
   let last = '';
   const ro = new ResizeObserver(() => {
     const size = `${wrap.clientWidth}x${libWrap.clientHeight}`;
@@ -197,14 +211,31 @@
   });
   ro.observe(wrap);
   ro.observe(libWrap);
-  pf.on('changeState', e => { if (e.data === 'user_fold' || e.data === 'flipping') load(pf.getCurrentPageIndex()); });
+  // A user fold reports its state before the library has worked out the direction, hence the microtask;
+  // a fold let go without turning goes back to 'read'.
+  pf.on('changeState', e => {
+    if (e.data === 'read') { syncLayout(); return; }
+    if (e.data !== 'user_fold' && e.data !== 'flipping') return;
+    load(pf.getCurrentPageIndex());
+    queueMicrotask(() => {
+      const calc = fc.getCalculation(), i = pf.getCurrentPageIndex();
+      if (!calc) return;
+      const fwd = calc.getDirection() === FORWARD;
+      if (i === 0 ? fwd : i === N - 1 && !fwd) syncLayout('open');
+      else if (!fwd && i <= 2) syncLayout('to-front');
+      else if (fwd && i >= N - 3) syncLayout('to-back');
+    });
+  });
   update();
   syncLayout();
   pickTier();
 
   window.addEventListener('load', () => {
     const idle = window.requestIdleCallback || (f => setTimeout(f, 1200));
-    idle(() => pages.forEach((p, i) => { if (!p.firstChild.src) p.firstChild.src = src(i, 'md'); }));
+    idle(() => {
+      pages.forEach((p, i) => { if (!p.firstChild.src) p.firstChild.src = src(i, 'md'); });
+      for (let s = 1; s <= 27; s++) new Image().src = spreadSrc(s);
+    });
   });
 
   const prev = () => pf.flipPrev();

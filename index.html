@@ -15,7 +15,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
-<link rel="preload" as="image" href="img/pages/md/p000.webp">
 </head>
 <body>
 
@@ -42,9 +41,12 @@
   <section id="portfolio" class="stage" aria-label="Portfolio book">
     <div class="book-frame">
       <div class="book-wrap" id="bookWrap">
-        <div id="book"></div>
+        <div id="book">
+          <div class="base"><img alt=""><img alt=""></div>
+          <div id="flip"></div>
+        </div>
       </div>
-      <p class="book-hint">Drag a page corner or use the arrows to turn pages. Click a page to zoom in.</p>
+      <p class="book-hint">Drag a page or use the arrows to turn pages. Click a page to zoom in.</p>
     </div>
 
     <button class="side-nav prev" id="sidePrev" aria-label="Previous page"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8"/></svg></button>

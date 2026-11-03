@@ -5,11 +5,13 @@
   --lavender: #B9A0CF;
   --violet: #6A4E86;
   --line: #D0CDD4;
-  --stage: #2C2A31;
+  /* The book photos sit on a grey table; the stage continues it. */
+  --stage: #D8D8D7;
   --stage-ink: #E6E3EA;
+  --stage-line: #ABA8B0;
   --gutter: clamp(16px, 4vw, 56px);
   --measure: 1180px;
-  --ratio: 0.7524;
+  --spread: 2.3043;
 }
 
 * { box-sizing: border-box; }
@@ -70,25 +72,50 @@ button { font: inherit; color: inherit; }
 /* Book stage */
 .stage {
   background: var(--stage);
-  color: var(--stage-ink);
-  padding: clamp(28px, 4vw, 56px) var(--gutter) clamp(28px, 4vw, 48px);
-  /* The covers are centred by sliding the book half a page; clip so that never becomes scrollable. */
+  color: var(--ink);
+  --tb-line: var(--stage-line);
+  padding: clamp(12px, 2vw, 32px) var(--gutter) clamp(28px, 4vw, 48px);
   overflow: clip;
 }
 .book-frame { max-width: 1600px; margin: 0 auto; }
 .book-wrap {
   margin: 0 auto;
   width: 100%;
-  max-width: calc((100svh - 230px) / var(--ratio) * 2);
-  min-height: 160px;
+  max-width: calc((100svh - 150px) * var(--spread));
   /* Horizontal gestures turn pages; without this the browser claims them as scrolls mid-drag. */
   touch-action: pan-y;
 }
-#book { margin: 0 auto; transition: transform .5s ease; }
+#book { position: relative; aspect-ratio: var(--spread); cursor: zoom-in; transition: transform .5s ease; }
 @media (prefers-reduced-motion: reduce) { #book { transition: none; } }
-#book .page { background: #f4f4f2; overflow: hidden; cursor: zoom-in; }
-#book .page img { width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; pointer-events: none; }
-.book-hint { text-align: center; color: #A9A5B0; font-size: 14px; margin: 18px 0 0; }
+#book .base img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; pointer-events: none; -webkit-user-drag: none; user-select: none; transition: opacity .5s ease; }
+/* The photo in two halves at the spine (x 1908 of 3786); a closed book hides the half its cover isn't on.
+   The left half overlaps the spine by a pixel so the halves leave no hairline seam. */
+#book .base img:nth-child(1) { clip-path: inset(0 calc(49.604% - 1px) 0 0); }
+#book .base img:nth-child(2) { clip-path: inset(0 0 0 50.396%); }
+/* Hidden instantly, so a page never shows under a turning cover; shown with a fade once a page lands. */
+#book.hide-l .base img:nth-child(1), #book.hide-r .base img:nth-child(2) { opacity: 0; transition: none; }
+/* With the other half gone, fade the cut at the spine into the table instead of leaving a hard edge. */
+#book.hide-l .base img:nth-child(2) { -webkit-mask: linear-gradient(to right, transparent 50.4%, #000 56%); mask: linear-gradient(to right, transparent 50.4%, #000 56%); }
+#book.hide-r .base img:nth-child(1) { -webkit-mask: linear-gradient(to left, transparent 49.6%, #000 44%); mask: linear-gradient(to left, transparent 49.6%, #000 44%); }
+/* Feather the photo's edges into the stage so the table has no visible border. */
+#book .base {
+  position: absolute; inset: 0;
+  -webkit-mask: linear-gradient(to right, transparent, #000 4%, #000 96%, transparent), linear-gradient(transparent, #000 5%, #000 95%, transparent);
+  -webkit-mask-composite: source-in;
+  mask: linear-gradient(to right, transparent, #000 4%, #000 96%, transparent), linear-gradient(transparent, #000 5%, #000 95%, transparent);
+  mask-composite: intersect;
+}
+/* The flipbook sits exactly on the photo's page area: pages are 1698x1318 crops at (210, 146) of the 3786x1643
+   photo, a little past the printed page's curved edges so the whole page turns and none of the photo's page shows past it. */
+/* !important: page-flip sets its own inline size on this element. */
+#flip { position: absolute; left: 5.5468%; top: 8.8862%; width: 89.6989% !important; height: 80.2191%; min-width: 0 !important; min-height: 0 !important; max-width: none !important; }
+#flip.off { visibility: hidden; }
+/* The library's shadow beside a turning hard cover is a flat grey box; on a closed book it falls on the bare table. */
+#flip .stf__hardShadow, #flip .stf__hardInnerShadow { visibility: hidden !important; }
+#flip .stf__wrapper { padding-bottom: 0 !important; height: 100%; }
+#flip .page { overflow: hidden; }
+#flip .page img { width: 100%; height: 100%; object-fit: fill; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+.book-hint { text-align: center; color: var(--ink-soft); font-size: 14px; margin: 12px 0 0; }
 
 .toolbar {
   display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -97,13 +124,14 @@ button { font: inherit; color: inherit; }
 .tb {
   display: inline-flex; align-items: center; gap: 8px;
   min-height: 40px; min-width: 40px; padding: 0 10px;
-  background: transparent; border: 1px solid #4A4751; border-radius: 3px;
-  color: var(--stage-ink); cursor: pointer; font-size: 14px;
+  background: transparent; border: 1px solid var(--tb-line, #4A4751); border-radius: 3px;
+  color: inherit; cursor: pointer; font-size: 14px;
 }
 .tb:hover:not(:disabled) { border-color: var(--lavender); }
+.stage .tb:hover:not(:disabled) { border-color: var(--violet); }
 .tb:disabled { opacity: .35; cursor: default; }
 .tb svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.tb-sep { width: 1px; height: 24px; background: #4A4751; margin: 0 6px; }
+.tb-sep { width: 1px; height: 24px; background: var(--tb-line, #4A4751); margin: 0 6px; }
 .counter { min-width: 120px; text-align: center; font-size: 15px; font-variant-numeric: tabular-nums; }
 
 .chapters {
@@ -111,18 +139,18 @@ button { font: inherit; color: inherit; }
   max-width: 1180px;
   display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 24px;
 }
-.chapters li:nth-child(-n+3) { border-top: 1px solid #45424C; }
+.chapters li:nth-child(-n+3) { border-top: 1px solid var(--stage-line); }
 .chapters button {
   width: 100%; text-align: left; cursor: pointer;
   display: grid; grid-template-columns: 30px 1fr; column-gap: 6px;
-  background: none; border: 0; border-bottom: 1px solid #45424C;
-  padding: 12px 8px; color: var(--stage-ink);
+  background: none; border: 0; border-bottom: 1px solid var(--stage-line);
+  padding: 12px 8px; color: var(--ink);
 }
-.chapters button:hover, .chapters button[aria-current="true"] { background: #36333C; }
-.chapters button[aria-current="true"] .ch-no { color: var(--lavender); }
-.ch-no { color: #8E8A96; font-size: 14px; padding-top: 2px; }
+.chapters button:hover, .chapters button[aria-current="true"] { background: #CBCBCA; }
+.chapters button[aria-current="true"] .ch-no { color: var(--violet); }
+.ch-no { color: var(--ink-soft); font-size: 14px; padding-top: 2px; }
 .ch-name { font-size: 16px; }
-.ch-tag { grid-column: 2; color: #A09CA8; font-size: 13px; }
+.ch-tag { grid-column: 2; color: var(--ink-soft); font-size: 13px; }
 
 /* Full-screen-only controls */
 .side-nav, .scrub, .fs-exit { display: none; }
@@ -139,12 +167,7 @@ button { font: inherit; color: inherit; }
   width: 100%; max-width: none; align-self: center;
   padding: var(--fpad) clamp(56px, 6vw, 96px);
 }
-.stage:fullscreen .book-wrap { max-width: none; }
-/* The library sizes its wrapper as an aspect ratio of the width and pins a minimum size set at load, so
-   pages could outgrow the screen (e.g. one tall page on a landscape phone). Give it the real height
-   and drop the minimum; it then fits and centres the pages itself. */
-.stage:fullscreen #book { min-width: 0 !important; min-height: 0 !important; }
-.stage:fullscreen .stf__wrapper { padding-bottom: 0 !important; height: calc(100vh - var(--bar) - 2 * var(--fpad)); }
+.stage:fullscreen .book-wrap { max-width: calc((100vh - var(--bar) - 2 * var(--fpad)) * var(--spread)); }
 .stage:fullscreen .chapters, .stage:fullscreen .book-hint,
 .stage:fullscreen #prev, .stage:fullscreen #next, .stage:fullscreen .tb-sep { display: none; }
 
@@ -152,19 +175,19 @@ button { font: inherit; color: inherit; }
   display: grid; place-items: center;
   position: absolute; top: calc(50% - var(--bar) / 2); transform: translateY(-50%);
   width: 56px; height: 96px; padding: 0;
-  background: none; border: 0; border-radius: 4px; color: var(--stage-ink); cursor: pointer;
+  background: none; border: 0; border-radius: 4px; color: var(--ink); cursor: pointer;
   opacity: .8; transition: opacity .15s, background-color .15s;
 }
 .stage:fullscreen .side-nav.prev { left: 8px; }
 .stage:fullscreen .side-nav.next { right: 8px; }
-.stage:fullscreen .side-nav:hover:not(:disabled) { opacity: 1; background: rgb(255 255 255 / .06); }
+.stage:fullscreen .side-nav:hover:not(:disabled) { opacity: 1; background: rgb(0 0 0 / .06); }
 .stage:fullscreen .side-nav:disabled { opacity: .2; cursor: default; }
 .side-nav svg { width: 36px; height: 36px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 .stage:fullscreen .toolbar {
   position: relative; margin: 0;
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px;
-  padding: 10px 16px 8px; background: #222026; border-top: 1px solid #3A3740;
+  padding: 10px 16px 8px; background: #CDCDCC; border-top: 1px solid var(--stage-line);
 }
 .stage:fullscreen .counter { justify-self: start; min-width: 0; text-align: left; }
 .stage:fullscreen #zoomBtn { justify-self: center; }
@@ -178,11 +201,11 @@ button { font: inherit; color: inherit; }
   width: calc(100% - 32px); height: 18px; margin: 0;
   background: none; -webkit-appearance: none; appearance: none; cursor: pointer;
 }
-.scrub::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--lavender) var(--p, 0%), #55525C var(--p, 0%)); }
-.scrub::-moz-range-track { height: 3px; border-radius: 2px; background: #55525C; }
-.scrub::-moz-range-progress { height: 3px; border-radius: 2px; background: var(--lavender); }
-.scrub::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; margin-top: -5px; border-radius: 50%; background: #fff; border: 0; }
-.scrub::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: #fff; border: 0; }
+.scrub::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--violet) var(--p, 0%), var(--stage-line) var(--p, 0%)); }
+.scrub::-moz-range-track { height: 3px; border-radius: 2px; background: var(--stage-line); }
+.scrub::-moz-range-progress { height: 3px; border-radius: 2px; background: var(--violet); }
+.scrub::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; margin-top: -5px; border-radius: 50%; background: var(--ink); border: 0; }
+.scrub::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: var(--ink); border: 0; }
 .scrub:focus-visible { outline-offset: 2px; }
 
 /* Narrow screens: edge arrows would cost too much width, so prev/next move into the bar. */
@@ -301,6 +324,8 @@ blockquote {
   .tb span { display: none; }
   .counter { min-width: 84px; }
   .book-hint { display: none; }
+  /* The photo's own table margin is padding enough; let it run to the screen edges. */
+  .book-frame { margin: 0 calc(-1 * var(--gutter)); }
   .chapters { grid-template-columns: 1fr; }
   .chapters li:nth-child(2) { border-top: 0; }
   .edu > li { grid-template-columns: 1fr; gap: 4px; padding: 22px 0; }
