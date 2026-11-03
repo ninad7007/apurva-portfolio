@@ -11,6 +11,10 @@
   const counter = document.getElementById('counter');
   const prevBtn = document.getElementById('prev');
   const nextBtn = document.getElementById('next');
+  const sidePrev = document.getElementById('sidePrev');
+  const sideNext = document.getElementById('sideNext');
+  const scrub = document.getElementById('scrub');
+  const fsBtn = document.getElementById('fsBtn');
   const chapterBtns = [...document.querySelectorAll('#chapters button')];
 
   const pages = [];
@@ -52,7 +56,6 @@
   const startPage = Math.min(N - 1, Math.max(0, (parseInt((location.hash.match(/page=(\d+)/) || [])[1], 10) || 1) - 1));
   load(startPage);
 
-  const maxH = Math.round(Math.max(screen.height, screen.width) * 0.9);
   // The library switches to one page per view when two pages can't each get minWidth;
   // 420px keeps spreads readable and gives portrait tablets one large page instead of a tiny spread.
   const minW = Math.min(420, wrap.clientWidth);
@@ -60,38 +63,80 @@
     width: W / 2, height: H / 2,
     size: 'stretch',
     minWidth: minW, minHeight: Math.round(minW * H / W),
-    maxWidth: Math.round(maxH * W / H), maxHeight: maxH,
+    // Size is fitted by the CSS around the book; these only need to be out of the way.
+    maxWidth: W * 2, maxHeight: H * 2,
     showCover: true,
     usePortrait: true,
     mobileScrollSupport: true,
     maxShadowOpacity: 0.35,
     flippingTime: 750,
     disableFlipByClick: true,
+    showPageCorners: false,
     startPage,
   });
   pf.loadFromHTML(pages);
 
-  // page-flip 2.0.7 bug: with disableFlipByClick on, flipPrev's synthetic start point falls outside
-  // the corner zone in single-page mode, so every backward turn (button, swipe, key, chapter jump)
-  // is silently ignored. Lift the click guard just for that call.
+  // page-flip 2.0.7 bug: with disableFlipByClick on, flipNext/flipPrev must hit a corner, but their
+  // synthetic points ignore the book's offset (x=10 in single-page mode; y=1 when the book is centred
+  // vertically in full screen), so buttons, keys and chapter jumps were silently ignored.
+  // Lift the click guard just for these calls.
   const fc = pf.getFlipController();
-  const flipPrev = fc.flipPrev.bind(fc);
-  fc.flipPrev = corner => {
-    const s = pf.getSettings();
-    s.disableFlipByClick = false;
-    try { flipPrev(corner); } finally { s.disableFlipByClick = true; }
-  };
+  for (const name of ['flipNext', 'flipPrev']) {
+    const orig = fc[name].bind(fc);
+    fc[name] = corner => {
+      const s = pf.getSettings();
+      s.disableFlipByClick = false;
+      try { orig(corner); } finally { s.disableFlipByClick = true; }
+    };
+  }
 
-  // A forward drag only completes once the finger crosses the page's left edge. In single-page view
-  // that edge is the screen edge, so slow drags always sprang back; complete them past mid-page instead.
+  // The library only completes a dragged turn once the pointer crosses the spine, so turning takes a
+  // long drag (and in single-page view is near impossible). Like Issuu, complete it on a short flick:
+  // a drag of ~6% of the page width in the turning direction.
+  // Measured from where the pointer went down: on touch the library only starts folding ~250ms in.
   const FORWARD = 0;
+  let ptrStart = null, ptrX = null;
+  wrap.addEventListener('pointerdown', e => { ptrStart = ptrX = e.clientX; }, true);
+  wrap.addEventListener('pointermove', e => { ptrX = e.clientX; }, true);
+
+  // Touch is driven here rather than by the library: it only tracks a drag after a 250ms hold, treats
+  // a slower swipe with no later moves as a tap where the finger lifted (turning the wrong way), and
+  // Chrome makes moves non-cancelable unless the first one is claimed. Instead, a horizontal move
+  // starts the same drag the mouse uses, straight away; vertical moves are left to scroll the page.
+  const block = bookEl.querySelector('.stf__block');
+  const bookPos = t => { const r = block.getBoundingClientRect(); return { x: t.clientX - r.left, y: t.clientY - r.top }; };
+  let touch0 = null;
+  wrap.addEventListener('touchstart', e => {
+    e.stopPropagation(); // keep the library's own touch handling out
+    const t = e.touches[0];
+    touch0 = e.touches.length === 1 ? { x: t.clientX, y: t.clientY, start: bookPos(t), dir: null, dragging: false } : null;
+  }, { capture: true, passive: true });
+  wrap.addEventListener('touchmove', e => {
+    if (!touch0) return;
+    const t = e.touches[0], dx = t.clientX - touch0.x, dy = t.clientY - touch0.y;
+    if (!touch0.dir && Math.hypot(dx, dy) > 3) touch0.dir = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    if (touch0.dir !== 'x') return;
+    if (e.cancelable) e.preventDefault();
+    if (pf.getState() !== 'read' && !touch0.dragging) return; // a turn is still animating
+    if (!touch0.dragging) { pf.startUserTouch(touch0.start); touch0.dragging = true; ptrStart = touch0.x; }
+    ptrX = t.clientX;
+    pf.userMove(bookPos(t), true);
+  }, { capture: true, passive: false });
+  const touchEnd = e => {
+    if (touch0?.dragging) pf.userStop(bookPos(e.changedTouches[0]));
+    touch0 = null;
+  };
+  wrap.addEventListener('touchend', touchEnd, true);
+  wrap.addEventListener('touchcancel', touchEnd, true);
   const stopMove = fc.stopMove.bind(fc);
   fc.stopMove = () => {
     const calc = fc.getCalculation();
-    if (calc && !isSpread() && calc.getDirection() === FORWARD) {
-      const pos = calc.getPosition(), rect = fc.getBoundsRect();
-      if (pos.x <= rect.pageWidth / 2) {
-        fc.animateFlippingTo(pos, { x: -rect.pageWidth, y: calc.getCorner() === 'bottom' ? rect.height : 0 }, true);
+    if (calc && ptrStart !== null) {
+      const rect = fc.getBoundsRect();
+      const dx = ptrX - ptrStart, flick = Math.max(24, rect.pageWidth * 0.06);
+      ptrStart = null;
+      if (calc.getDirection() === FORWARD ? dx < -flick : dx > flick) {
+        fc.animateFlippingTo(calc.getPosition(), { x: -rect.pageWidth, y: calc.getCorner() === 'bottom' ? rect.height : 0 }, true);
         return;
       }
     }
@@ -112,8 +157,10 @@
     load(i);
     const v = visible(i);
     counter.textContent = i === 0 ? 'Cover' : i === N - 1 ? 'Back cover' : v.map(x => x + 1).join('-') + ` / ${N}`;
-    prevBtn.disabled = i === 0;
-    nextBtn.disabled = i === N - 1;
+    prevBtn.disabled = sidePrev.disabled = i === 0;
+    nextBtn.disabled = sideNext.disabled = i === N - 1;
+    scrub.value = i;
+    scrub.style.setProperty('--p', (i / (N - 1)) * 100 + '%');
     let current = null;
     chapterBtns.forEach(b => { if (+b.dataset.page <= v[v.length - 1]) current = b; });
     chapterBtns.forEach(b => b.setAttribute('aria-current', b === current && i > 0 ? 'true' : 'false'));
@@ -123,8 +170,9 @@
   // In spread view the covers sit alone on one half; slide the book so they are centred.
   const syncLayout = () => {
     const i = pf.getCurrentPageIndex();
-    const shift = !isSpread() ? 0 : i === 0 ? -25 : i === N - 1 ? 25 : 0;
-    bookEl.style.transform = shift ? `translateX(${shift}%)` : '';
+    const half = pf.getBoundsRect().pageWidth / 2;
+    const shift = !isSpread() ? 0 : i === 0 ? -half : i === N - 1 ? half : 0;
+    bookEl.style.transform = shift ? `translateX(${shift}px)` : '';
   };
 
   const pickTier = () => {
@@ -134,8 +182,21 @@
 
   pf.on('flip', () => { update(); syncLayout(); });
   pf.on('changeOrientation', () => { syncLayout(); update(); pickTier(); });
-  window.addEventListener('resize', () => requestAnimationFrame(pickTier));
-  document.addEventListener('fullscreenchange', () => setTimeout(pickTier, 100));
+  // The library only re-measures on window resize; entering full screen resizes the container
+  // without one, leaving pages at the old size. Its wrapper's height follows the width a frame later
+  // and caps the page height, so watch both and re-run the library's resize until they settle.
+  const libWrap = bookEl.querySelector('.stf__wrapper') || bookEl;
+  let last = '';
+  const ro = new ResizeObserver(() => {
+    const size = `${wrap.clientWidth}x${libWrap.clientHeight}`;
+    if (size === last) return;
+    last = size;
+    window.dispatchEvent(new Event('resize'));
+    syncLayout();
+    pickTier();
+  });
+  ro.observe(wrap);
+  ro.observe(libWrap);
   pf.on('changeState', e => { if (e.data === 'user_fold' || e.data === 'flipping') load(pf.getCurrentPageIndex()); });
   update();
   syncLayout();
@@ -150,15 +211,30 @@
   const next = () => pf.flipNext();
   prevBtn.addEventListener('click', prev);
   nextBtn.addEventListener('click', next);
+  sidePrev.addEventListener('click', prev);
+  sideNext.addEventListener('click', next);
+
+  // Scrubbing shows where you'll land; releasing turns straight there.
+  scrub.addEventListener('input', () => {
+    const v = +scrub.value;
+    scrub.style.setProperty('--p', (v / (N - 1)) * 100 + '%');
+    counter.textContent = v === 0 ? 'Cover' : v === N - 1 ? 'Back cover' : visible(v).map(x => x + 1).join('-') + ` / ${N}`;
+  });
+  scrub.addEventListener('change', () => { load(+scrub.value); pf.turnToPage(+scrub.value); update(); syncLayout(); });
   chapterBtns.forEach(b => b.addEventListener('click', () => {
     const p = +b.dataset.page;
     load(p);
     pf.flip(p);
   }));
 
-  document.getElementById('fsBtn').addEventListener('click', () => {
+  fsBtn.addEventListener('click', () => {
     if (document.fullscreenElement) document.exitFullscreen();
     else stage.requestFullscreen?.();
+  });
+  document.addEventListener('fullscreenchange', () => {
+    const on = !!document.fullscreenElement;
+    fsBtn.lastChild.textContent = on ? 'Exit full screen' : 'Full screen';
+    fsBtn.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen');
   });
 
   // Zoom viewer

@@ -47,13 +47,17 @@
       <p class="book-hint">Drag a page corner or use the arrows to turn pages. Click a page to zoom in.</p>
     </div>
 
+    <button class="side-nav prev" id="sidePrev" aria-label="Previous page"><svg viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8"/></svg></button>
+    <button class="side-nav next" id="sideNext" aria-label="Next page"><svg viewBox="0 0 24 24"><path d="M9 4l8 8-8 8"/></svg></button>
+
     <div class="toolbar" role="toolbar" aria-label="Book controls">
+      <input type="range" class="scrub" id="scrub" min="0" max="55" step="1" value="0" aria-label="Go to page">
       <button class="tb" id="prev" aria-label="Previous page"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
       <span class="counter" id="counter" aria-live="polite">Cover</span>
       <button class="tb" id="next" aria-label="Next page"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
       <span class="tb-sep"></span>
       <button class="tb" id="zoomBtn" aria-label="Zoom into current page"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5M10.5 8v5M8 10.5h5"/></svg><span>Zoom</span></button>
-      <button class="tb" id="fsBtn" aria-label="Full screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Full screen</span></button>
+      <button class="tb" id="fsBtn" aria-label="Full screen"><svg class="fs-enter" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><svg class="fs-exit" viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg><span>Full screen</span></button>
     </div>
 
     <ol class="chapters" id="chapters" aria-label="Jump to a project">

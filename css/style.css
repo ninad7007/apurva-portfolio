@@ -72,6 +72,8 @@ button { font: inherit; color: inherit; }
   background: var(--stage);
   color: var(--stage-ink);
   padding: clamp(28px, 4vw, 56px) var(--gutter) clamp(28px, 4vw, 48px);
+  /* The covers are centred by sliding the book half a page; clip so that never becomes scrollable. */
+  overflow: clip;
 }
 .book-frame { max-width: 1600px; margin: 0 auto; }
 .book-wrap {
@@ -79,6 +81,8 @@ button { font: inherit; color: inherit; }
   width: 100%;
   max-width: calc((100svh - 230px) / var(--ratio) * 2);
   min-height: 160px;
+  /* Horizontal gestures turn pages; without this the browser claims them as scrolls mid-drag. */
+  touch-action: pan-y;
 }
 #book { margin: 0 auto; transition: transform .5s ease; }
 @media (prefers-reduced-motion: reduce) { #book { transition: none; } }
@@ -120,9 +124,74 @@ button { font: inherit; color: inherit; }
 .ch-name { font-size: 16px; }
 .ch-tag { grid-column: 2; color: #A09CA8; font-size: 13px; }
 
-.stage:fullscreen { display: flex; flex-direction: column; justify-content: center; overflow: auto; padding: 16px; }
-.stage:fullscreen .book-wrap { max-width: calc((100vh - 110px) / var(--ratio) * 2); }
-.stage:fullscreen .chapters, .stage:fullscreen .book-hint { display: none; }
+/* Full-screen-only controls */
+.side-nav, .scrub, .fs-exit { display: none; }
+
+/* Full screen, laid out like Issuu: book fills the screen, arrows at the edges, a control bar at the bottom. */
+.stage:fullscreen {
+  --bar: 64px;
+  display: grid; grid-template-rows: 1fr var(--bar);
+  padding: 0; overflow: clip; background: var(--stage);
+}
+.stage:fullscreen .book-frame {
+  --fpad: 16px;
+  /* A definite width; auto margins in a flex/grid track would shrink it to the book, which sizes itself from it. */
+  width: 100%; max-width: none; align-self: center;
+  padding: var(--fpad) clamp(56px, 6vw, 96px);
+}
+.stage:fullscreen .book-wrap { max-width: none; }
+/* The library sizes its wrapper as an aspect ratio of the width and pins a minimum size set at load, so
+   pages could outgrow the screen (e.g. one tall page on a landscape phone). Give it the real height
+   and drop the minimum; it then fits and centres the pages itself. */
+.stage:fullscreen #book { min-width: 0 !important; min-height: 0 !important; }
+.stage:fullscreen .stf__wrapper { padding-bottom: 0 !important; height: calc(100vh - var(--bar) - 2 * var(--fpad)); }
+.stage:fullscreen .chapters, .stage:fullscreen .book-hint,
+.stage:fullscreen #prev, .stage:fullscreen #next, .stage:fullscreen .tb-sep { display: none; }
+
+.stage:fullscreen .side-nav {
+  display: grid; place-items: center;
+  position: absolute; top: calc(50% - var(--bar) / 2); transform: translateY(-50%);
+  width: 56px; height: 96px; padding: 0;
+  background: none; border: 0; border-radius: 4px; color: var(--stage-ink); cursor: pointer;
+  opacity: .8; transition: opacity .15s, background-color .15s;
+}
+.stage:fullscreen .side-nav.prev { left: 8px; }
+.stage:fullscreen .side-nav.next { right: 8px; }
+.stage:fullscreen .side-nav:hover:not(:disabled) { opacity: 1; background: rgb(255 255 255 / .06); }
+.stage:fullscreen .side-nav:disabled { opacity: .2; cursor: default; }
+.side-nav svg { width: 36px; height: 36px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.stage:fullscreen .toolbar {
+  position: relative; margin: 0;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px;
+  padding: 10px 16px 8px; background: #222026; border-top: 1px solid #3A3740;
+}
+.stage:fullscreen .counter { justify-self: start; min-width: 0; text-align: left; }
+.stage:fullscreen #zoomBtn { justify-self: center; }
+.stage:fullscreen #fsBtn { justify-self: end; }
+.stage:fullscreen .fs-enter { display: none; }
+.stage:fullscreen .fs-exit { display: block; }
+
+/* Page scrubber along the top edge of the bar */
+.stage:fullscreen .scrub {
+  display: block; position: absolute; left: 16px; right: 16px; top: -9px;
+  width: calc(100% - 32px); height: 18px; margin: 0;
+  background: none; -webkit-appearance: none; appearance: none; cursor: pointer;
+}
+.scrub::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--lavender) var(--p, 0%), #55525C var(--p, 0%)); }
+.scrub::-moz-range-track { height: 3px; border-radius: 2px; background: #55525C; }
+.scrub::-moz-range-progress { height: 3px; border-radius: 2px; background: var(--lavender); }
+.scrub::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; margin-top: -5px; border-radius: 50%; background: #fff; border: 0; }
+.scrub::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: #fff; border: 0; }
+.scrub:focus-visible { outline-offset: 2px; }
+
+/* Narrow screens: edge arrows would cost too much width, so prev/next move into the bar. */
+@media (max-width: 600px) {
+  .stage:fullscreen .book-frame { --fpad: 10px; padding: var(--fpad); }
+  .stage:fullscreen .side-nav { display: none; }
+  .stage:fullscreen .toolbar { display: flex; justify-content: space-between; }
+  .stage:fullscreen #prev, .stage:fullscreen #next { display: inline-flex; }
+}
 
 /* Sections */
 .section { max-width: var(--measure); margin: 0 auto; padding: clamp(56px, 8vw, 104px) var(--gutter) 0; }
