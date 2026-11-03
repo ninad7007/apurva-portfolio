@@ -56,9 +56,9 @@
   const startPage = Math.min(N - 1, Math.max(0, (parseInt((location.hash.match(/page=(\d+)/) || [])[1], 10) || 1) - 1));
   load(startPage);
 
-  // The library switches to one page per view when two pages can't each get minWidth;
-  // 420px keeps spreads readable and gives portrait tablets one large page instead of a tiny spread.
-  const minW = Math.min(420, wrap.clientWidth);
+  // Always show spreads, even on phones, so it reads as a book; tapping a page opens it alone in the zoom viewer.
+  // The library enforces 2 x minWidth as the book's min-width, so keep it within the container.
+  const minW = Math.min(420, Math.floor(wrap.clientWidth / 2));
   const pf = new St.PageFlip(bookEl, {
     width: W / 2, height: H / 2,
     size: 'stretch',
@@ -66,7 +66,7 @@
     // Size is fitted by the CSS around the book; these only need to be out of the way.
     maxWidth: W * 2, maxHeight: H * 2,
     showCover: true,
-    usePortrait: true,
+    usePortrait: false,
     mobileScrollSupport: true,
     maxShadowOpacity: 0.35,
     flippingTime: 750,
