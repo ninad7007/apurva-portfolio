@@ -4,7 +4,7 @@
   const pad = n => String(n).padStart(3, '0');
   // Pages are crops of the PDF's own photos of the printed book (hd), with lighter previews (md).
   // ?v: the crops changed shape; make browsers fetch the new ones rather than reuse cached ones.
-  const src = (n, size) => `img/pages/${size}/p${pad(n)}.${size === 'hd' ? 'jpg' : 'webp'}?v=2`;
+  const src = (n, size) => `img/pages/${size}/p${pad(n)}.${size === 'hd' ? 'jpg' : 'webp'}?v=3`;
 
   // Under the flipbook lies the PDF's photo of the open book at the current spread (1-27), supplying the
   // table, shadows and page edges; the inside pages are exact crops of it, so at rest the two match.
