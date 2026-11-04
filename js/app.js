@@ -4,7 +4,7 @@
   const pad = n => String(n).padStart(3, '0');
   // Pages are full-resolution crops of the photos of the printed book (hd), with lighter previews (md).
   // ?v: the crops changed shape; make browsers fetch the new ones rather than reuse cached ones.
-  const src = (n, size) => `img/pages/${size}/p${pad(n)}.webp?v=5`;
+  const src = (n, size) => `img/pages/${size}/p${pad(n)}.webp?v=6`;
 
   // Under the flipbook lies the PDF's photo of the open book at the current spread (1-27), supplying the
   // table, shadows and page edges; the inside pages are exact crops of it, so at rest the two match.
@@ -15,7 +15,7 @@
   const flipEl = document.getElementById('flip');
   const [photoL, photoR] = bookEl.querySelectorAll('.base img');
   let tier = 'sm';
-  const spreadSrc = s => `img/spreads/${tier}/s${pad(s)}.webp?v=5`;
+  const spreadSrc = s => `img/spreads/${tier}/s${pad(s)}.webp?v=6`;
   const wrap = document.getElementById('bookWrap');
   const stage = document.getElementById('portfolio');
   const counter = document.getElementById('counter');
