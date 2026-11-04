@@ -1,10 +1,10 @@
 (() => {
   const N = 56;
-  const W = 1698, H = 1318;
+  const W = 1698, H = 1318, HD_W = 4313;
   const pad = n => String(n).padStart(3, '0');
-  // Pages are crops of the PDF's own photos of the printed book (hd), with lighter previews (md).
+  // Pages are full-resolution crops of the photos of the printed book (hd), with lighter previews (md).
   // ?v: the crops changed shape; make browsers fetch the new ones rather than reuse cached ones.
-  const src = (n, size) => `img/pages/${size}/p${pad(n)}.${size === 'hd' ? 'jpg' : 'webp'}?v=3`;
+  const src = (n, size) => `img/pages/${size}/p${pad(n)}.webp?v=4`;
 
   // Under the flipbook lies the PDF's photo of the open book at the current spread (1-27), supplying the
   // table, shadows and page edges; the inside pages are exact crops of it, so at rest the two match.
@@ -15,7 +15,7 @@
   const flipEl = document.getElementById('flip');
   const [photoL, photoR] = bookEl.querySelectorAll('.base img');
   let tier = 'sm';
-  const spreadSrc = s => `img/spreads/${tier}/s${pad(s)}.webp`;
+  const spreadSrc = s => `img/spreads/${tier}/s${pad(s)}.webp?v=4`;
   const wrap = document.getElementById('bookWrap');
   const stage = document.getElementById('portfolio');
   const counter = document.getElementById('counter');
@@ -276,7 +276,7 @@
   // Zoom state: the page is fitted into the canvas (fw x fh) and drawn at scale s, offset (x, y).
   let s = 1, x = 0, y = 0, fw = 0, fh = 0, cw = 0, ch = 0;
   // Past ~2x the source's native pixels there is no more detail, only blur, so stop there.
-  const maxScale = () => Math.max(1.5, (W / (fw * devicePixelRatio)) * 2);
+  const maxScale = () => Math.max(1.5, (HD_W / (fw * devicePixelRatio)) * 2);
   const render = animate => {
     const w = fw * s, h = fh * s;
     // Smaller than the canvas on an axis: centre it. Larger: never let an edge pull inside the canvas.
